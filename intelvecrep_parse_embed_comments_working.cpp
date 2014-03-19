@@ -1,5 +1,7 @@
 /* 
 
+Perfexpert module for parsing intel vectorization reports (6 and 7) and embedding collated messages as comments to a copy of the original source code
+
 Approach
 a. Generate vec report 6 (with optimization level O3) for the given source file.
 b. Generate vec report 7 (with optimization level O3) for the given source file.
