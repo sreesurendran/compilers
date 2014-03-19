@@ -8,3 +8,4 @@ vecruntime.cpp
 4. run macpo for the intersection set generated in 3
 5. store information from intel, macpo and hotspots into perfexpert
 6. run the perfexpert framework to generate recommendations and change code
+7. 
