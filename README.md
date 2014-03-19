@@ -1,11 +1,11 @@
-RA
-==
-
-vecruntime.cpp
-1. generate intel vectorization reports for loops which are (a) not vectorized and (b) partially vectorized
-2. get hot spots of the program using perfexpert
-3. get the intersection of 1 and 2
-4. run macpo for the intersection set generated in 3
-5. store information from intel, macpo and hotspots into perfexpert
-6. run the perfexpert framework to generate recommendations and change code
-7. 
+intelvecrep_basic_do_not_use.cpp
+	don't bother
+intelvecrep_macpo_perfexpert_tbm.cpp
+	integration of vec reports + macpo + perfexpert
+	file to work on
+intelvecrep_parse_embed_comments_tbm.cpp
+	first draft of perfexpert-vecreport module
+intelvecrep_parse_embed_comments_internal_dict.cpp
+	second draft of perfexpert-vecreport module (vec7messages are in the source file)
+intelvecrep_parse_embed_comments_external_dict.cpp
+	third draft of perfexpert-vecreport module (vec7messages are in vec7messages.txt)
