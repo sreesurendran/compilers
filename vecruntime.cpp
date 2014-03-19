@@ -1,4 +1,15 @@
-/* to run this code: 
+/* 
+
+Steps
+1. generate intel vectorization reports 6 and 7 
+2. isolate loops from (1) which are (a) not vectorized and (b) partially vectorized
+3. get hot spots of the program using perfexpert
+4. get the intersection of (2) and (3)
+5. run macpo for the intersection set generated in (4)
+5. store information from intel, macpo and hotspots into perfexpert
+6. run the perfexpert framework to generate recommendations and change source
+
+to run this code: 
 
 ./executable <fully_qualified_sourcefile> <fully_qualified_executable> <arguments_for_binary> 
 
