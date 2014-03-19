@@ -1,3 +1,9 @@
+/* to run this code: 
+
+./executable <fully_qualified_sourcefile> <fully_qualified_executable> <arguments_for_binary> 
+
+*/
+
 #include <iostream>
 #include <string>
 #include <set>
@@ -18,14 +24,25 @@
 #define cpluspluscompiler "icpc "
 #define loadMacpo "source /work/01174/ashay/apps/macpo-setup.sh"
 #define runMacpoPrefix "macpo.sh --macpo:check-alignment="
+#define loadPerfExpert "module load papi hpctoolkit perfexpert"
+#define unloadPerfExpert "module unload perfexpert"
+#define perfExpertExp "perfexpert_run_exp ./"
+#define perfExpertAnalyzer "perfexpert_analyzer -t 0.1 -i "
+#define perfExpertPath1 ":/opt/apps/perfexpert/4.1.1/bin"
+#define perfExpertPath2 ":/opt/apps/papi/5.3.0/bin"
+#define perfExpertPath3 ":/opt/apps/hpctoolkit/5.3.2/bin"
+#define macpoPath1 ":/work/01174/ashay/apps/jdk1.7/bin" 
+#define macpoPath2 ":/work/01174/ashay/apps/jdk1.7/jre/bin"
+#define macpoPath3 ":/work/01174/ashay/apps/graphviz/bin"
+#define macpoPath4 ":/work/01174/ashay/apps/opttran/bin/"
 
 using namespace std;
 
 unordered_map<string,set<string>> htabLines;
-int MpoNVCt = 0;
-int MpoPVCt = 0;
-int INVCt = 0;
-int IPVCt = 0;
+float MpoNVCt = 0;
+float MpoPVCt = 0;
+float INVCt = 0;
+float IPVCt = 0;
 
 unordered_map<string,string> htabVecMessages = {
                 {"VEC#00000" , "vectorization report for function - "},
@@ -133,6 +150,7 @@ void parseVecReport(string fileName,bool isVec6){
 		while(getline(infile,line)){
 			if(line.find("error") != string::npos){
 				cout<<endl<<line;
+				infile.close();
 				exit(0);
 			}		
 			else if(line.find("warning") != string::npos)
@@ -216,51 +234,27 @@ string addCategory(set<string> reasons){
         return strReason;	
 }
 
-vector<string> parseMacpoOutput(string fileName){
-	vector<string> macpoAnalyzedLoops;
-	string line;
-	ifstream infile(fileName);
-	if(infile.is_open()){
-		while(getline(infile,line)){
-			string out;
-			transform(line.begin(),line.end(),back_inserter(out),::toupper);
-			if(out.find("[MACPO] ANALYZED CODE AT") != string::npos){
-				string sourceFile;
-				int indexOfColon = out.find_first_of(":");
-				//assumption - filepath is fully qualified.
-				//check with Ashay; if this is not the case, write an else statement to cover the other case.
-				if(out.find_last_of("/") != string::npos){
-					int indexOfSlash = out.find_last_of("/");
-					sourceFile = line.substr(indexOfSlash + 1,indexOfColon - indexOfSlash - 1);
-					//cout<<endl<<"FN:"<<sourceFile;
-				}
-				//check with Ashay if these statements always end with a period.
-				//if not, change the logic.
-				int indexOfPeriod = out.find_last_of(".");
-				string lineNumber = line.substr(indexOfColon + 1, indexOfPeriod - indexOfColon - 1);
-				//cout<<endl<<"LN:"<<lineNumber;
-				macpoAnalyzedLoops.push_back(sourceFile + ";" + lineNumber);
-			}
-		}
-		infile.close();
-	}	
-	return macpoAnalyzedLoops;
+string getConsoleOutput(string command){
+	
+	string result = "";
+        FILE *pip = popen(command.c_str(),"r");
+        if(pip == NULL)
+                return result;
+        while(!feof(pip)){
+                char buffer[1024];
+                while(fgets(buffer,sizeof(buffer),pip) != NULL){
+			//buffer[sizeof(buffer)-1] = '\0';
+                        result += buffer;
+                }
+        }
+        pclose(pip);
+	pip = NULL;
+	return result;	
 }
 
 bool isMacpoAnalyzedLoop(string command,vector<string>& noMacpoAnalysis, string fileName, string lineNb){
-	string result="";
-	//cout<<endl<<"Command:"<<command;
-	FILE *pipe = popen(command.c_str(),"r");
-	if(!pipe) 
-		return false;
-	while(!feof(pipe)){
-		char buffer[1024];
-		while(fgets(buffer,sizeof(buffer),pipe) != NULL){
-			result += buffer;
-		}
-	}
-	//cout<<endl<<"RESULT:"<<result;
-	pclose(pipe);
+	string result = getConsoleOutput(command);
+
 	if(result.find("[macpo] Code at") != string::npos){
 		size_t posLine  = result.find("[macpo] Code at");
 		string line = result.substr(posLine);
@@ -283,39 +277,83 @@ int executeCommand(string cmd){
 	return system(c);
 }
 
+bool getHotLoops(string executableDetails,set<string>& hotLoops){
+
+        string result = getConsoleOutput(string(perfExpertExp) + executableDetails);
+        string xmlFileName = "";
+        if(!result.empty()){
+                vector<string> result_by_line = splitStringByDelimiter(result,'\n');
+                for(int i=0;i<result_by_line.size();i++){
+        		string out;
+        		transform(result_by_line[i].begin(),result_by_line[i].end(),back_inserter(out),::toupper);
+                        if(out.find("PERFEXPERT_ANALYZER") != string::npos){
+                                vector<string> xmlFileLine = splitStringByDelimiter(result_by_line[i],' ');
+                                if(xmlFileLine.size() >= 4)
+                                        xmlFileName = xmlFileLine[3];
+                                break;
+                        }
+                }
+                if(xmlFileName != ""){
+                        result = "";
+                        string temp = string(perfExpertAnalyzer) + xmlFileName;
+                        result = getConsoleOutput(temp);
+                        vector<string> perfExpertOutput = splitStringByDelimiter(result,'\n');
+                        for(auto ii=perfExpertOutput.begin();ii!=perfExpertOutput.end();ii++){
+        			string out;
+        			transform((*ii).begin(),(*ii).end(),back_inserter(out),::toupper);
+                                if(out.find("LOOP IN FUNCTION") != string::npos){
+                                        vector<string> hotLoopParts = splitStringByDelimiter(*ii,' ');
+                                        for(int i=0;i<hotLoopParts.size();i++){
+                                                if(hotLoopParts[i].find(":") != string::npos)
+                                                        hotLoops.insert(hotLoopParts[i]);
+                                        }
+                                }
+                        }
+
+                }
+		else
+			return false;
+        }
+	else
+		return false;
+	return true;	
+}
+
 int main(int argc,char* argv[]){
+
+       if(argc < 3){
+                cout<<endl<<"Enter filename:"<<endl;
+                return 0;
+        }
 
         //initialize variables
 	vector<string> params(argv,argc+argv);
 	string cmd = "";
 	int returnValue;
-
-	if(argc <= 1){
-		cout<<endl<<"Enter filename:"<<endl;
-		return 0;
-	}	
-	else{
-        	string out;
-                transform(params[1].begin(),params[1].end(),back_inserter(out),::toupper);
-                bool blC = (out.find(".C") != string::npos) ? true : false;
-                bool blCPP = (out.find(".CPP") != string::npos) ? true : false;
-		out = "";	
-		if(blC){
-			out = ccompiler;
-		}
-		else if(blCPP)
-			out = cpluspluscompiler;
-		
-		cmd = out + params[1] + flags + vecReportLevel + "6 2> fip1.txt";
-		returnValue = executeCommand(cmd);
-
-		//cout<<endl<<"Cmd: "<<cmd;
-
-		cmd = out + params[1] + flags + vecReportLevel + "7 2> fip2.txt";
-		returnValue = executeCommand(cmd);		
-
-		//cout<<endl<<"Cmd: "<<cmd;
+	string execName = "";
+	for(int i=2;i<params.size();i++){
+		execName += params[i] + " ";
 	}
+	
+       	string out;
+        transform(params[1].begin(),params[1].end(),back_inserter(out),::toupper);
+        bool blC = (out.find(".C") != string::npos) ? true : false;
+        bool blCPP = (out.find(".CPP") != string::npos) ? true : false;
+ 	out = "";	
+	if(blC){
+		out = ccompiler;
+	}
+	else if(blCPP)
+		out = cpluspluscompiler;		
+	cmd = out + params[1] + flags + vecReportLevel + "6 2> fip1.txt";
+	returnValue = executeCommand(cmd);
+
+	//cout<<endl<<"Cmd: "<<cmd;
+
+	cmd = out + params[1] + flags + vecReportLevel + "7 2> fip2.txt";
+	returnValue = executeCommand(cmd);		
+
+	//cout<<endl<<"Cmd: "<<cmd;
 	
 	string line;
 	parseVecReport("fip1.txt",true);
@@ -324,13 +362,20 @@ int main(int argc,char* argv[]){
 	set<string> sourceFiles;
 	vector<string> noMacpoAnalysisNV;
 	vector<string> noMacpoAnalysisPV;
+	set<string> macpoAnalysisNV;//of the format <filename(just_the_name)>:<linenb>
 
-	//stdout display and count NV and PV loops
+	if(htabLines.size() == 0){
+		cout<<endl<<"Unable to process vector reports"<<endl;
+		cout<<endl<<"Please check /fip1.txt and /fip2.txt"<<endl<<endl;
+		return 0;
+	}
+
   	for(unordered_map<string,set<string>>::iterator it=htabLines.begin();it!=htabLines.end();it++){
 		set<string> reasons = htabLines.at(it->first);
                 int intIndexOfDelimiter = (it->first).find_first_of(";");
                 string strFileName = (it->first).substr(0,intIndexOfDelimiter);
-                string strLineNb = (it->first).substr(intIndexOfDelimiter+1,strLineNb.size()-intIndexOfDelimiter-1);
+                //string strLineNb = (it->first).substr(intIndexOfDelimiter+1,strLineNb.size()-intIndexOfDelimiter-1);
+                string strLineNb = (it->first).substr(intIndexOfDelimiter+1,(it->first).size()-intIndexOfDelimiter-1);
 		if(sourceFiles.find(strFileName) == sourceFiles.end()){
                 	sourceFiles.insert(strFileName);
                 }		
@@ -339,9 +384,13 @@ int main(int argc,char* argv[]){
 		if(strReason.substr(0,14) == "NOT VECTORIZED"){
 			INVCt++;
        			string macpoCmd = string(runMacpoPrefix) + strFileName  + "#" + strLineNb + string(flags) + params[1];
-        		//cout<<endl<<"Macpo Command NV:" <<macpoCmd;
-        		//returnValue = executeCommand(macpoCmd);
         		if(isMacpoAnalyzedLoop(macpoCmd,noMacpoAnalysisNV,strFileName,strLineNb)){
+				if(strFileName.find("/") != string::npos){
+					size_t indexOfLastSlash = strFileName.find_last_of("/");
+					macpoAnalysisNV.insert(strFileName.substr(indexOfLastSlash + 1) + ":" + strLineNb);
+				}
+				else
+					macpoAnalysisNV.insert(strFileName+":"+strLineNb);
 				MpoNVCt++;
 			}
 		}
@@ -351,9 +400,13 @@ int main(int argc,char* argv[]){
 			if(out.find("PARTIAL LOOP WAS VECTORIZED") != string::npos){
 				IPVCt++;
                         	string macpoCmd = string(runMacpoPrefix) + strFileName + "#" + strLineNb + string(flags) + params[1];
-                        	//cout<<endl<<"Macpo Command: PV" <<macpoCmd;
-                        	//returnValue = executeCommand(macpoCmd);
                         	if(isMacpoAnalyzedLoop(macpoCmd,noMacpoAnalysisPV,strFileName,strLineNb)){
+                                	if(strFileName.find("/") != string::npos){
+                                        	size_t indexOfLastSlash = strFileName.find_last_of("/");
+                                        	macpoAnalysisNV.insert(strFileName.substr(indexOfLastSlash + 1) + ":" + strLineNb);
+                                	}
+					else
+						macpoAnalysisNV.insert(strFileName + ":" + strLineNb);
                         		MpoPVCt++;
                         	}
 			}
@@ -362,30 +415,75 @@ int main(int argc,char* argv[]){
                 cout<<endl;
         }
 
-
-	cout<<endl<<endl;
-	cout<<endl<<"Macpo can instrument "<<MpoNVCt << " out of "<< INVCt << " non vectorized loops";
-	cout<<endl<<"Macpo can instrument "<<MpoPVCt << " out of "<< IPVCt << " partially vectorized loops"<<endl;	
 	
-	if(INVCt - MpoNVCt != 0){
-		cout<<endl<<(INVCt - MpoNVCt)<<" loops (NOT VECTORIZED) that are not instrumentable by Macpo are listed as follows:"<<endl<<endl;
+	cout<<endl<<endl;
+	cout<<endl<<"Macpo can instrument "<<MpoNVCt << " out of "<< INVCt << " i.e " << (MpoNVCt/INVCt)*100 << "% non vectorized loops";
+	cout<<endl<<"Macpo can instrument "<<MpoPVCt << " out of "<< IPVCt << " i.e " << (MpoPVCt/IPVCt)*100 << "% partially vectorized loops"<<endl;	
+	
+	if(noMacpoAnalysisNV.size() > 0 || noMacpoAnalysisPV.size() > 0)
+		cout<<endl<<"INFORMATION (IF ANY) ON LOOPS NOT INSTRUMENTABLE BY MACPO"<<endl;
+	
+	if(noMacpoAnalysisNV.size() > 0){
+		cout << endl << noMacpoAnalysisNV.size() << " out of " << (INVCt - MpoNVCt) << " loops (NOT VECTORIZED) that are not instrumentable by Macpo are listed as follows:" << endl << endl;
 		for(auto ii=noMacpoAnalysisNV.begin();ii!=noMacpoAnalysisNV.end();ii++)
-			cout<<*ii<<endl;
+			cout<<*ii;
 	}
 
-        if(IPVCt - MpoPVCt != 0){
-                cout<<endl<<(IPVCt - MpoPVCt)<<" loops (PARTIALLY VECTORIZED) that are not instrumentable by Macpo are listed as follows:"<<endl<<endl;
+        if(noMacpoAnalysisPV.size() > 0){
+                cout << endl << noMacpoAnalysisPV.size() << " out of " << (IPVCt - MpoPVCt) << " loops (PARTIALLY VECTORIZED) that are not instrumentable by Macpo are listed as follows:"<< endl << endl;
                 for(auto ii=noMacpoAnalysisPV.begin();ii!=noMacpoAnalysisPV.end();ii++)
-                        cout<<*ii<<endl;
+                        cout<<*ii;
         }
+	
+	//set up environment variables to run perfexpert
+         char* path = NULL;
+	 if(path = getenv("PATH")){
+	 	strcat(path,perfExpertPath1);
+	        setenv("PATH",path,1);
+	        strcat(path,perfExpertPath2);
+	        setenv("PATH",path,1);
+	        strcat(path,perfExpertPath3);
+	        setenv("PATH",path,1);
+	 }
+	 path = NULL;
+	
+	//run perfexpert to find the hot loops 
+	//check the percentage of hot loops out of the loops that can be instrumented by macpo 
+	set<string> hotLoops;
+	bool isPerfExpertEnabled = getHotLoops(execName,hotLoops);
+	if(!isPerfExpertEnabled){
+		cout<<endl<<"Check Perfexpert"<<endl;
+		return 0;
+	}
 
+	cout<<endl<<"Instrumented by Macpo (NV+PV):"<<endl;
+	for(auto ii=macpoAnalysisNV.begin();ii!=macpoAnalysisNV.end();ii++)
+		cout<<*ii<<endl;
 
+        cout<<endl<<"Hotloops:"<<endl;
+        for(auto ii=hotLoops.begin();ii!=hotLoops.end();ii++)
+                cout<<*ii<<endl;		
+	
+	vector<string> v1(macpoAnalysisNV.begin(),macpoAnalysisNV.end());
+	vector<string> v2(hotLoops.begin(),hotLoops.end());
+	vector<string> target(v1.size() + v2.size());
+	sort(v1.begin(),v1.end());
+	sort(v2.begin(),v2.end());
+	auto it = std::set_intersection(v1.begin(),v1.end(),v2.begin(),v2.end(),target.begin());
+	target.resize(it - target.begin());
+
+        cout<<endl<<"Hot Loops that are instrumentable by Macpo:"<<endl;
+        for(auto ii=target.begin();ii!=target.end();ii++)
+                cout<<*ii<<endl;	
+	
+	cout << endl << ((float)target.size()/(float)macpoAnalysisNV.size())*100 << "% loops instrumentable by Macpo are hotloops" << endl;
+	
 	//embed in source code
 	for(set<string>::iterator it=sourceFiles.begin();it!=sourceFiles.end();it++){
 		ifstream infile(*it);
 		int intIndexOfDelimiter = (*it).find_first_of(".");
 		string rawFileName = (*it).substr(0,intIndexOfDelimiter);
-		string fileExtension = (*it).substr(intIndexOfDelimiter+1,fileExtension.size()-intIndexOfDelimiter-1);
+		string fileExtension = (*it).substr(intIndexOfDelimiter+1,(*it).size()-intIndexOfDelimiter-1);
 		string tempOutputFileName = rawFileName + "_temp." + fileExtension;
 		ofstream outfile(tempOutputFileName);
 		int ct = 0;
@@ -413,7 +511,7 @@ int main(int argc,char* argv[]){
 		returnValue = executeCommand(cmdRemoveLineFeedCharacters);
 		returnValue = executeCommand("rm " + tempOutputFileName);
 	}
-
+	
 	cout<<endl;
 	return(0);
  }
