@@ -5,9 +5,10 @@ Steps
 2. isolate loops from (1) which are (a) not vectorized and (b) partially vectorized
 3. get hot spots of the program using perfexpert
 4. get the intersection of (2) and (3)
-5. run macpo for the intersection set generated in (4)
-5. store information from intel, macpo and hotspots into perfexpert
-6. run the perfexpert framework to generate recommendations and change source
+5. compile loops in (4) using macpo to get loops that are analyzed by macpo
+5. run macpo for the intersection set of loops analyzed by macpo in (5)
+6. store information from intel, macpo and hotspots into perfexpert
+7. run the perfexpert framework to generate recommendations and change source
 
 to run this code: 
 
