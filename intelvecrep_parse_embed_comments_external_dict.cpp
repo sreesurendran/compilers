@@ -64,8 +64,6 @@ b. fip2.txt - vec report 7
 
 using namespace std;
 
-unordered_map<string,set<string>> htabLines;
-
 string trimWhiteSpaces(string str){
 	string whitespaces(" \t\f\v\n\r");
 	std::size_t found = str.find_first_not_of(whitespaces);
@@ -87,7 +85,7 @@ vector<string> splitStringByDelimiter(string str,char delim){
 	return vecTemp;	
 }
 
-void parseVecReport(string fileName,unordered_map<string,string>& htabVecMessages,bool isVec6){
+void parseVecReport(string fileName,unordered_map<string,string>& htabVecMessages,unordered_map<string,set<string>>& htabLines,bool isVec6){
 	string line;
 	bool isMsg = false;
 	ifstream infile(fileName);
@@ -184,7 +182,7 @@ int executeCommand(string cmd){
 	return system(c);
 }
 
-void display_on_console(set<string>& sourceFiles){
+void display_on_console(set<string>& sourceFiles,unordered_map<string,set<string>>& htabLines){
 	for(unordered_map<string,set<string>>::iterator it=htabLines.begin();it!=htabLines.end();it++){
                 set<string> reasons = htabLines.at(it->first);
                 int intIndexOfDelimiter = (it->first).find_first_of(";");
@@ -199,7 +197,7 @@ void display_on_console(set<string>& sourceFiles){
         }
 }
 
-void embed_in_soource_code(set<string>& sourceFiles,int returnValue){
+void embed_in_soource_code(set<string>& sourceFiles,unordered_map<string,set<string>>& htabLines,int returnValue){
         for(set<string>::iterator it=sourceFiles.begin();it!=sourceFiles.end();it++){
                 ifstream infile(*it);
                 int intIndexOfDelimiter = (*it).find_first_of(".");
@@ -286,6 +284,7 @@ int main(int argc,char* argv[]){
 	string cmd = "";
 	int returnValue;	
        	string out;
+	unordered_map<string,set<string>> htabLines;
 
 	//check if the source file is a .c or .cpp file to invoke the corresponding compiler
         transform(params[1].begin(),params[1].end(),back_inserter(out),::toupper);
@@ -307,9 +306,9 @@ int main(int argc,char* argv[]){
 	returnValue = executeCommand(cmd);		
 
 	//parse vec report 6
-	parseVecReport("fip1.txt",htabVecMessages,true);
+	parseVecReport("fip1.txt",htabVecMessages,htabLines,true);
 	//parse vec report 7
-	parseVecReport("fip2.txt",htabVecMessages,false);	
+	parseVecReport("fip2.txt",htabVecMessages,htabLines,false);	
 	
 	//if the vec reports 6 and 7 could not be parsed, return
 	if(htabLines.size() == 0){
@@ -320,10 +319,10 @@ int main(int argc,char* argv[]){
 
 	//print to stdout
 	set<string> sourceFiles;
-	display_on_console(sourceFiles);
+	display_on_console(sourceFiles,htabLines);
 
 	//embed in source code
-	embed_in_soource_code(sourceFiles,returnValue);
+	embed_in_soource_code(sourceFiles,htabLines,returnValue);
 
 	cout<<endl;
 	return(0);
