@@ -40,7 +40,7 @@ b. fip2.txt - vec report 7
 */
 
 /* Changes to be made
- * a. replace system() with exec()
+ * a. replace system() -- done
  * b. for the _temp and _out file created, give file i/o permissions to the current user (is this requried? -- check)
  * c. make sure there's no issue if the source file is located in a different directory
  * d. test edge cases
