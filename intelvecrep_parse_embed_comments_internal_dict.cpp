@@ -1,3 +1,8 @@
+/*
+* AUTHOR: SREEDEVI SURENDRAN
+*
+*/
+
 /* 
 
 Perfexpert module for parsing intel vectorization reports (6 and 7) and embedding collated messages as comments to a copy of the original source code
