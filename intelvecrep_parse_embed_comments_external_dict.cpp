@@ -59,6 +59,7 @@ b. fip2.txt - vec report 7
 #include <cstring>
 #include <cstddef>
 #include "stdlib.h"
+#include <unistd.h>
 
 #define vecReportLevel "-vec-report="
 #define optimizationLevel "-O3"
@@ -183,8 +184,15 @@ string addCategory(set<string> reasons){
 }
 
 int executeCommand(string cmd){
-	const char *c = cmd.c_str();
-	return system(c);
+	//const char *c = cmd.c_str();
+	//return system(c);
+        
+	FILE *pip = popen(cmd.c_str(),"r");
+        if(pip == NULL)
+                return -1;
+        pclose(pip);
+        pip = NULL;	
+	return 0;
 }
 
 void display_on_console(set<string>& sourceFiles,unordered_map<string,set<string>>& htabLines){
@@ -308,7 +316,7 @@ int main(int argc,char* argv[]){
 
 	//generate vec report 7 and write into fip2.txt
 	cmd = out + params[1] + flags + vecReportLevel + "7 2> fip2.txt";
-	returnValue = executeCommand(cmd);		
+	returnValue = executeCommand(cmd);
 
 	//parse vec report 6
 	parseVecReport("fip1.txt",htabVecMessages,htabLines,true);
